@@ -8,6 +8,7 @@ import sys
 import textwrap
 from collections import namedtuple
 from pathlib import Path
+from pprint import pprint
 
 # https://github.com/libfuse/python-fuse
 # https://pypi.org/project/fuse-python/
@@ -66,6 +67,11 @@ class FileHandlerTar(FileHandler):
         re.I | re.X,
     )
 
+class FileHandlerPassthrough(FileHandler):
+    @classmethod
+    def matches(cls, path):
+        return None
+
 
 KNOWN_FILE_HANDLERS = [
     FileHandlerZip,
@@ -81,6 +87,30 @@ def find_file_handler(path):
             (fname, dname) = file_and_dir
             return HandlerForFile(handler, fname, dname)
     return None
+
+
+HandlerForPart = namedtuple("HandlerForPart", ["fullpath", "part", "handler", "filename", "dirname"])
+
+
+def find_all_handlers(path_str):
+    path = Path(path_str.removeprefix("/"))
+
+    fullpath = Path(".")
+    handler_parts = []
+
+    for (i, part) in enumerate(path.parts):
+        fullpath = fullpath / part
+        if match := find_file_handler(part):
+            handler_parts.append(HandlerForPart(
+                fullpath, part, match.handler, match.filename, match.dirname
+            ))
+        else:
+            handler_parts.append(HandlerForPart(
+                fullpath, part, FileHandlerPassthrough, None, None
+            ))
+
+    pprint(handler_parts)
+    return handler_parts
 
 
 class FakeStat(fuse.Stat):
